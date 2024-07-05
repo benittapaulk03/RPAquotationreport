@@ -1,0 +1,110 @@
+import openpyxl
+from openpyxl.styles import PatternFill, Alignment, Font, Border, Side
+from openpyxl import load_workbook
+from datetime import datetime
+
+def mark_duplicates(sheet, column_index):
+    existing_values = set()
+    highlight_indices = []
+    fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+    
+    for row_idx in range(5, sheet.max_row + 1):  # Start from row 5 to skip header rows
+        cell_value = sheet.cell(row=row_idx, column=column_index).value
+        if cell_value in existing_values:
+            highlight_indices.append(row_idx)
+        else:
+            existing_values.add(cell_value)
+    
+    for row_idx in highlight_indices:
+        for col_idx in range(1, sheet.max_column + 1):  
+            cell = sheet.cell(row=row_idx, column=col_idx)
+            cell.fill = fill
+
+def enterdetails(ws, sheet, row_index):
+    func_address = None
+    for row in ws.iter_rows():
+        for cell in row:
+            if cell.value is not None and 'Sub Total' in str(cell.value):
+                func_address = cell.coordinate[1:]
+                break
+        if func_address:
+            break
+    
+    if func_address:
+        copy_map = {
+            'B4': 'B' + str(row_index),
+            'F3': 'C' + str(row_index),
+            'A10': 'E' + str(row_index),
+            'F2': 'F' + str(row_index),
+            'E6': 'G' + str(row_index),
+            f'F{func_address}': 'H' + str(row_index)
+        }
+        
+        for src_cell, dest_cell in copy_map.items():
+            src_value = ws[src_cell].value
+            sheet[dest_cell] = src_value
+        sheet[f'A{row_index}'] = row_index - 4
+    else:
+        print("No 'Sub Total' found. Skipping sheet.")
+
+    return row_index + 1
+
+
+
+source_workbook_path = 'C:/Users/Huawei/Downloads/06.June24_QuoteBook_PK.xlsm'
+source_wb = load_workbook(source_workbook_path, data_only=True)
+current_date = datetime.now()
+currentyear = current_date.strftime('%Y')
+wb = openpyxl.Workbook()
+default_font = Font(name='Calibri')
+
+//Create a new sheet for each month
+for sheet_name in source_wb.sheetnames:
+    ws = source_wb[sheet_name]
+    cell_value = ws['F2'].value
+    if isinstance(cell_value, datetime):
+        smonth = cell_value.strftime('%B')
+        new_sheet_name = f"{smonth} {currentyear}"
+        if new_sheet_name in wb.sheetnames:
+            current_ws = wb[new_sheet_name]
+            existing_rows = len([cell for cell in current_ws['B'] if cell.value is not None])
+            row_index = 4 + existing_rows
+            row_index = enterdetails(ws, current_ws, row_index)
+        else:
+            sheet = wb.create_sheet(title=f"{smonth} {currentyear}")
+            sheet["A2"] = f"{smonth} Report"
+            sheet.merge_cells('A2:K2')
+            sheet["A2"].alignment = Alignment(horizontal='center')
+            light_green_fill = PatternFill(start_color="008000", end_color="008000", fill_type="solid")
+            sheet["A2"].fill = light_green_fill
+            yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+            for col in range(1, 12):  # Columns A to K (1 to 11)
+                cell = sheet.cell(row=4, column=col)
+                cell.fill = yellow_fill
+                border_style = Side(style='thin', color='000000')  //border
+                cell.border = Border(top=border_style, bottom=border_style, left=border_style, right=border_style)
+            sheet["A4"] = "SI.no"
+            sheet["B4"] = "Client"
+            sheet["C4"] = "Quote number"
+            sheet["E4"] = "Project"
+            sheet["F4"] = "Date"
+            sheet["G4"] = "Mobile number"
+            sheet["H4"] = "Amount"
+            sheet["I4"] = "Remarks"
+            sheet["J4"] = "LPO No."
+            sheet["K4"] = "Follow up"
+            bold_font = Font(name='Calibri', bold=True)
+            for row in range(2, 5):  # Rows 2 to 4 (A2 to K4)
+                for col in range(1, 12):  # Columns A to K (1 to 11)
+                    cell = sheet.cell(row=row, column=col)
+                    cell.font = bold_font
+            row_index = 5
+            row_index = enterdetails(ws, sheet, row_index)
+
+for sheet_name in wb.sheetnames:
+    rdsheet_ws = wb[sheet_name]
+    mark_duplicates(rdsheet_ws, 3)
+
+default_sheet = wb["Sheet"]
+wb.remove(default_sheet)
+wb.save("path to where you want to save your file")
